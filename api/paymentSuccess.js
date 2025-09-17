@@ -5,12 +5,13 @@ import { generateUserId, generateToken } from "../lib/utils.js";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export default async function handler(req, res) {
-  const { session_id } = req.query;
-  if (!session_id) return res.status(400).json({ status: "error", message: "Missing session_id" });
-
   try {
-    const session = await stripe.checkout.sessions.retrieve(session_id);
+    const { session_id, pkg } = req.query;
+    if (!session_id || !pkg) {
+      return res.status(400).json({ status: "error", message: "Missing session_id or pkg" });
+    }
 
+    const session = await stripe.checkout.sessions.retrieve(session_id);
     if (session.payment_status !== "paid") {
       return res.status(400).json({ status: "failed", message: "Payment not completed" });
     }
@@ -20,7 +21,7 @@ export default async function handler(req, res) {
 
     const result = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: "Members!A2:F",
+      range: "Members!A1:F",
     });
 
     const rows = result.data.values || [];
@@ -31,17 +32,16 @@ export default async function handler(req, res) {
     const expiry = new Date();
     expiry.setMonth(expiry.getMonth() + 1);
 
-    // กำหนด quota ตาม product ที่จ่าย (mock เป็น lite = 5)
-    const quota = 5;
-    const used = 0;
-    const pkg = "lite";
+    // quota mock
+    const quotaMap = { lite: 5, standard: 10, premium: 30 };
+    const quota = quotaMap[pkg.toLowerCase()] || 5;
 
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: "Members!A2:F",
+      range: "Members!A1:F",
       valueInputOption: "USER_ENTERED",
       requestBody: {
-        values: [[newId, newToken, expiry.toISOString().split("T")[0], quota, used, pkg]],
+        values: [[newId, newToken, expiry.toISOString().split("T")[0], quota, 0, pkg]],
       },
     });
 

@@ -8,21 +8,21 @@ const packageMap = {
 };
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
-
-  const { packageId } = req.body;
-  const priceId = packageMap[packageId?.toLowerCase()];
-
-  if (!priceId) return res.status(400).json({ error: "Invalid packageId" });
-
   try {
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
+    }
+
+    const { packageId } = req.body;
+    const priceId = packageMap[packageId?.toLowerCase()];
+
+    if (!priceId) return res.status(400).json({ error: "Invalid packageId" });
+
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "payment",
-      success_url: `${process.env.BASE_URL}/api/paymentSuccess?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${process.env.BASE_URL}/api/paymentSuccess?session_id={CHECKOUT_SESSION_ID}&pkg=${packageId}`,
       cancel_url: `${process.env.BASE_URL}/cancel`,
     });
 

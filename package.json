@@ -1,7 +1,13 @@
 {
   "name": "my-astrology-api",
   "version": "1.0.0",
+  "description": "Astrology API with membership system (Vercel + Google Sheets + Stripe)",
+  "main": "index.js",
   "type": "module",
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "node api/checkToken.js"
+  },
   "dependencies": {
     "googleapis": "^126.0.1",
     "stripe": "^15.0.0"

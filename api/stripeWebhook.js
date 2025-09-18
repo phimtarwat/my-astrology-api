@@ -5,7 +5,7 @@ import { generateUserId, generateToken } from "../lib/utils.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// ❗ ต้องปิด bodyParser ของ Vercel (Stripe ต้องใช้ raw body)
+// ❗ Stripe ต้องการ raw body → ต้องปิด bodyParser
 export const config = {
   api: {
     bodyParser: false,
@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     event = stripe.webhooks.constructEvent(
       buf,
       sig,
-      process.env.STRIPE_WEBHOOK_SECRET   // ✅ ใส่ Signing Secret จาก Stripe Dashboard
+      process.env.STRIPE_WEBHOOK_SECRET
     );
   } catch (err) {
     console.error("❌ Webhook verification failed:", err.message);
@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       const expiry = new Date();
       expiry.setMonth(expiry.getMonth() + 1);
 
-      const pkg = session.metadata?.packageId || "lite";   // ✅ ใช้ metadata จาก createCheckout
+      const pkg = session.metadata?.packageId || "lite";
       const quotaMap = { lite: 5, standard: 10, premium: 30 };
       const quota = quotaMap[pkg.toLowerCase()] || 5;
 
@@ -61,11 +61,18 @@ export default async function handler(req, res) {
         range: "Members!A1:F",
         valueInputOption: "USER_ENTERED",
         requestBody: {
-          values: [[newId, newToken, expiry.toISOString().split("T")[0], quota, 0, pkg]],
+          values: [[
+            newId,
+            newToken,
+            expiry.toISOString().split("T")[0],
+            quota,
+            0,
+            pkg
+          ]],
         },
       });
 
-      console.log(`✅ User created: ${newId}, token: ${newToken}`);
+      console.log(`✅ User created: ${newId}, token: ${newToken}, pkg=${pkg}`);
     } catch (err) {
       console.error("❌ Google Sheets error:", err);
     }
@@ -73,4 +80,3 @@ export default async function handler(req, res) {
 
   res.json({ received: true });
 }
-

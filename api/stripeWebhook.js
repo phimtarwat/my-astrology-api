@@ -5,11 +5,8 @@ import { generateUserId, generateToken } from "../lib/utils.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// ❗ Stripe ต้องการ raw body → ปิด bodyParser
 export const config = {
-  api: {
-    bodyParser: false,
-  },
+  api: { bodyParser: false }, // ❗ Stripe ต้องการ raw body
 };
 
 export default async function handler(req, res) {
@@ -32,17 +29,19 @@ export default async function handler(req, res) {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // ✅ ฟังเฉพาะ checkout session completed
+  // ✅ ฟังเฉพาะ event checkout.session.completed
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
 
-    // --- 1) พยายามอ่านจาก metadata (ใช้กรณี Checkout API) ---
-    let pkg = session.metadata?.packageId;
+    let pkg = session.metadata?.packageId; // ถ้าเป็น Checkout API จะมี metadata
 
-    // --- 2) ถ้าไม่มี metadata → fallback สำหรับ Payment Links ---
+    // ✅ ถ้าไม่มี metadata → fallback สำหรับ Payment Links
     if (!pkg) {
       try {
-        const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
+        const lineItems = await stripe.checkout.sessions.listLineItems(
+          session.id,
+          { limit: 1 }
+        );
         const priceId = lineItems.data[0]?.price?.id;
 
         if (priceId === process.env.STRIPE_PRICE_LITE) pkg = "lite";
@@ -55,7 +54,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // --- 3) gen user_id + token + quota ---
+    // ✅ gen user_id + token + quota
     try {
       const sheets = await getSheet();
       const spreadsheetId = process.env.SHEET_ID;
@@ -66,7 +65,7 @@ export default async function handler(req, res) {
       });
 
       const rows = result.data.values || [];
-      const existingIds = rows.map(r => r[0]);
+      const existingIds = rows.map((r) => r[0]);
 
       const newId = generateUserId(existingIds);
       const newToken = generateToken();

@@ -31,21 +31,16 @@ export default async function handler(req, res) {
 
   console.log("✅ Received event:", event.type);
 
-  // ฟังเฉพาะ Payment Links → PaymentIntent
+  // ✅ ฟังเฉพาะ Payment Links → PaymentIntent
   if (event.type === "payment_intent.succeeded") {
     const intent = event.data.object;
     console.log("💳 PaymentIntent:", intent.id, "amount:", intent.amount);
 
     try {
-      // ✅ ดึง line_items ของ PaymentIntent
-      const lineItems = await stripe.paymentIntents.listLineItems(intent.id, { limit: 1 });
-      const priceId = lineItems.data[0]?.price?.id;
-      console.log("📦 priceId:", priceId);
-
-      // ✅ map package จาก Price ID
+      // ✅ map package จาก amount (หน่วยคือ satang → 9900 = 99.00 บาท)
       let pkg = "lite";
-      if (priceId === process.env.STRIPE_PRICE_STANDARD) pkg = "standard";
-      else if (priceId === process.env.STRIPE_PRICE_PREMIUM) pkg = "premium";
+      if (intent.amount === 9900) pkg = "standard";
+      else if (intent.amount === 19900) pkg = "premium";
 
       console.log("📦 Package mapped:", pkg);
 

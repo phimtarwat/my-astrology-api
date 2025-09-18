@@ -5,11 +5,8 @@ import { generateUserId, generateToken } from "../lib/utils.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// ❗ Stripe ต้องการ raw body → ต้องปิด bodyParser
 export const config = {
-  api: {
-    bodyParser: false,
-  },
+  api: { bodyParser: false },
 };
 
 export default async function handler(req, res) {
@@ -22,11 +19,7 @@ export default async function handler(req, res) {
 
   let event;
   try {
-    event = stripe.webhooks.constructEvent(
-      buf,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
+    event = stripe.webhooks.constructEvent(buf, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error("❌ Webhook verification failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -35,6 +28,26 @@ export default async function handler(req, res) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object;
 
+    // ✅ 1) พยายามอ่านจาก metadata ก่อน (กรณี Checkout API)
+    let pkg = session.metadata?.packageId;
+
+    // ✅ 2) ถ้าไม่มี metadata → แปลว่ามาจาก Payment Links
+    if (!pkg) {
+      try {
+        const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 });
+        const priceId = lineItems.data[0]?.price?.id;
+
+        if (priceId === process.env.STRIPE_PRICE_LITE) pkg = "lite";
+        else if (priceId === process.env.STRIPE_PRICE_STANDARD) pkg = "standard";
+        else if (priceId === process.env.STRIPE_PRICE_PREMIUM) pkg = "premium";
+        else pkg = "lite"; // default
+      } catch (err) {
+        console.error("❌ Error fetching line items:", err);
+        pkg = "lite";
+      }
+    }
+
+    // ✅ gen user_id / token
     try {
       const sheets = await getSheet();
       const spreadsheetId = process.env.SHEET_ID;
@@ -52,7 +65,6 @@ export default async function handler(req, res) {
       const expiry = new Date();
       expiry.setMonth(expiry.getMonth() + 1);
 
-      const pkg = session.metadata?.packageId || "lite";
       const quotaMap = { lite: 5, standard: 10, premium: 30 };
       const quota = quotaMap[pkg.toLowerCase()] || 5;
 
@@ -61,14 +73,7 @@ export default async function handler(req, res) {
         range: "Members!A1:F",
         valueInputOption: "USER_ENTERED",
         requestBody: {
-          values: [[
-            newId,
-            newToken,
-            expiry.toISOString().split("T")[0],
-            quota,
-            0,
-            pkg
-          ]],
+          values: [[newId, newToken, expiry.toISOString().split("T")[0], quota, 0, pkg]],
         },
       });
 

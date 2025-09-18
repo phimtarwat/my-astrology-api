@@ -5,11 +5,8 @@ import { generateUserId, generateToken } from "../lib/utils.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// ❗ Stripe ต้องการ raw body → ปิด bodyParser
 export const config = {
-  api: {
-    bodyParser: false,
-  },
+  api: { bodyParser: false },
 };
 
 export default async function handler(req, res) {
@@ -32,21 +29,23 @@ export default async function handler(req, res) {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // ✅ ฟังเฉพาะ Payment Links → event = payment_intent.succeeded
+  console.log("✅ Received event:", event.type);
+
   if (event.type === "payment_intent.succeeded") {
     const intent = event.data.object;
+    console.log("💳 PaymentIntent:", intent.id, "amount:", intent.amount);
 
     try {
-      // ดึงข้อมูล line_items ของ PaymentIntent
-      const lineItems = await stripe.paymentIntents.listLineItems(intent.id, {
-        limit: 1,
-      });
+      // ดึง line_items ของ PaymentIntent
+      const lineItems = await stripe.paymentIntents.listLineItems(intent.id, { limit: 1 });
       const priceId = lineItems.data[0]?.price?.id;
+      console.log("📦 priceId:", priceId);
 
-      // map package จาก Price ID
       let pkg = "lite";
       if (priceId === process.env.STRIPE_PRICE_STANDARD) pkg = "standard";
       else if (priceId === process.env.STRIPE_PRICE_PREMIUM) pkg = "premium";
+
+      console.log("📦 Package mapped:", pkg);
 
       // ✅ gen user_id + token
       const sheets = await getSheet();
@@ -86,8 +85,7 @@ export default async function handler(req, res) {
 
       console.log(`✅ User created: ${newId}, token: ${newToken}, pkg=${pkg}`);
     } catch (err) {
-      console.error("❌ Error processing payment link:", err);
-      return res.status(500).send("Server error");
+      console.error("❌ Error processing payment:", err);
     }
   }
 

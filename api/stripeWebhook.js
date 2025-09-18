@@ -5,10 +5,10 @@ import { generateUserId, generateToken } from "../lib/utils.js";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export const config = {
-  api: { bodyParser: false }, // ❗ ต้องปิด bodyParser เพื่อได้ raw body
+  api: { bodyParser: false },
 };
 
-// ✅ ฟังก์ชันอ่าน raw body แทน micro
+// อ่าน raw body เอง (แทน micro)
 async function getRawBody(req) {
   return new Promise((resolve, reject) => {
     let data = "";
@@ -51,12 +51,10 @@ export default async function handler(req, res) {
     console.log("💳 PaymentIntent:", intent.id, "amount:", intent.amount);
 
     try {
-      // ✅ map package จาก amount (หน่วย satang)
+      // ✅ map package จาก amount
       let pkg = "lite";
       if (intent.amount === 9900) pkg = "standard";
       else if (intent.amount === 19900) pkg = "premium";
-
-      console.log("📦 Package mapped:", pkg);
 
       // ✅ gen user_id + token
       const sheets = await getSheet();
@@ -78,14 +76,6 @@ export default async function handler(req, res) {
       const quotaMap = { lite: 5, standard: 10, premium: 30 };
       const quota = quotaMap[pkg.toLowerCase()] || 5;
 
-      console.log("📝 Writing to Google Sheet:", {
-        user_id: newId,
-        token: newToken,
-        expiry: expiry.toISOString().split("T")[0],
-        quota,
-        pkg,
-      });
-
       await sheets.spreadsheets.values.append({
         spreadsheetId,
         range: "Members!A1:F",
@@ -102,7 +92,20 @@ export default async function handler(req, res) {
         },
       });
 
-      console.log(`✅ User created successfully → user_id=${newId}, token=${newToken}, pkg=${pkg}`);
+      console.log(`✅ User created: ${newId}, token=${newToken}, pkg=${pkg}`);
+
+      // ✅ Push ไปยัง GPT Connector
+      await fetch(process.env.GPT_PUSH_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_ref: intent.id, // ref ไว้ใช้ debug
+          message: `✅ การชำระเงินสำเร็จแล้วค่ะ\nuser_id=${newId}, token=${newToken} (แพ็กเกจ ${pkg}, quota ${quota} ครั้ง)`
+        }),
+      });
+
+      console.log("📡 Sent push message to GPT Connector");
+
     } catch (err) {
       console.error("❌ Error processing payment:", err);
       return res.status(500).send("Server error");

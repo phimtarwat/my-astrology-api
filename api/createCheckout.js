@@ -20,14 +20,13 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Invalid packageId" });
     }
 
-    // ✅ รองรับทั้งบัตรและ PromptPay
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card", "promptpay"],
+      payment_method_types: ["card", "promptpay"], // ✅ รองรับบัตร + QR Code
       line_items: [{ price: priceId, quantity: 1 }],
       mode: "payment",
       success_url: `${process.env.BASE_URL}/success`,
       cancel_url: `${process.env.BASE_URL}/cancel`,
-      metadata: { packageId }, // ✅ ส่ง packageId ไปให้ webhook ใช้งาน
+      metadata: { packageId }, // ✅ ส่งข้อมูล package ไปที่ webhook
     });
 
     return res.json({ url: session.url });

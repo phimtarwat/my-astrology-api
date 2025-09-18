@@ -1,13 +1,28 @@
 import Stripe from "stripe";
-import { buffer } from "micro";
 import { getSheet } from "../lib/googleSheet.js";
 import { generateUserId, generateToken } from "../lib/utils.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 export const config = {
-  api: { bodyParser: false }, // ❗ Stripe ต้องการ raw body
+  api: { bodyParser: false }, // ❗ ต้องปิด bodyParser เพื่อได้ raw body
 };
+
+// ✅ ฟังก์ชันอ่าน raw body แทน micro
+async function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    req.on("data", (chunk) => {
+      data += chunk;
+    });
+    req.on("end", () => {
+      resolve(Buffer.from(data));
+    });
+    req.on("error", (err) => {
+      reject(err);
+    });
+  });
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -15,7 +30,7 @@ export default async function handler(req, res) {
   }
 
   const sig = req.headers["stripe-signature"];
-  const buf = await buffer(req);
+  const buf = await getRawBody(req);
 
   let event;
   try {
@@ -31,20 +46,19 @@ export default async function handler(req, res) {
 
   console.log("✅ Received event:", event.type);
 
-  // ✅ ฟังเฉพาะ Payment Links → PaymentIntent
   if (event.type === "payment_intent.succeeded") {
     const intent = event.data.object;
     console.log("💳 PaymentIntent:", intent.id, "amount:", intent.amount);
 
     try {
-      // ✅ map package จาก amount (หน่วยคือ satang → 9900 = 99.00 บาท)
+      // ✅ map package จาก amount (หน่วย satang)
       let pkg = "lite";
       if (intent.amount === 9900) pkg = "standard";
       else if (intent.amount === 19900) pkg = "premium";
 
       console.log("📦 Package mapped:", pkg);
 
-      // ✅ เตรียม gen user_id + token
+      // ✅ gen user_id + token
       const sheets = await getSheet();
       const spreadsheetId = process.env.SHEET_ID;
 

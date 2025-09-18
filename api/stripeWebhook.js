@@ -5,8 +5,11 @@ import { generateUserId, generateToken } from "../lib/utils.js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// ❗ Stripe ต้องการ raw body → ปิด bodyParser
 export const config = {
-  api: { bodyParser: false }, // ❗ Stripe ต้องการ raw body
+  api: {
+    bodyParser: false,
+  },
 };
 
 export default async function handler(req, res) {
@@ -29,33 +32,23 @@ export default async function handler(req, res) {
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
-  // ✅ ฟังเฉพาะ event checkout.session.completed
-  if (event.type === "checkout.session.completed") {
-    const session = event.data.object;
+  // ✅ ฟังเฉพาะ Payment Links → event = payment_intent.succeeded
+  if (event.type === "payment_intent.succeeded") {
+    const intent = event.data.object;
 
-    let pkg = session.metadata?.packageId; // ถ้าเป็น Checkout API จะมี metadata
-
-    // ✅ ถ้าไม่มี metadata → fallback สำหรับ Payment Links
-    if (!pkg) {
-      try {
-        const lineItems = await stripe.checkout.sessions.listLineItems(
-          session.id,
-          { limit: 1 }
-        );
-        const priceId = lineItems.data[0]?.price?.id;
-
-        if (priceId === process.env.STRIPE_PRICE_LITE) pkg = "lite";
-        else if (priceId === process.env.STRIPE_PRICE_STANDARD) pkg = "standard";
-        else if (priceId === process.env.STRIPE_PRICE_PREMIUM) pkg = "premium";
-        else pkg = "lite"; // default
-      } catch (err) {
-        console.error("❌ Error fetching line items:", err);
-        pkg = "lite";
-      }
-    }
-
-    // ✅ gen user_id + token + quota
     try {
+      // ดึงข้อมูล line_items ของ PaymentIntent
+      const lineItems = await stripe.paymentIntents.listLineItems(intent.id, {
+        limit: 1,
+      });
+      const priceId = lineItems.data[0]?.price?.id;
+
+      // map package จาก Price ID
+      let pkg = "lite";
+      if (priceId === process.env.STRIPE_PRICE_STANDARD) pkg = "standard";
+      else if (priceId === process.env.STRIPE_PRICE_PREMIUM) pkg = "premium";
+
+      // ✅ gen user_id + token
       const sheets = await getSheet();
       const spreadsheetId = process.env.SHEET_ID;
 
@@ -93,7 +86,8 @@ export default async function handler(req, res) {
 
       console.log(`✅ User created: ${newId}, token: ${newToken}, pkg=${pkg}`);
     } catch (err) {
-      console.error("❌ Google Sheets error:", err);
+      console.error("❌ Error processing payment link:", err);
+      return res.status(500).send("Server error");
     }
   }
 

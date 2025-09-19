@@ -1,8 +1,10 @@
 import Stripe from "stripe";
 import { getSheet } from "../lib/googleSheet.js";
 import { generateUserId, generateToken } from "../lib/utils.js";
+import sendgrid from "@sendgrid/mail";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+sendgrid.setApiKey(process.env.SENDGRID_API_KEY);
 
 export const config = {
   api: { bodyParser: false },
@@ -22,6 +24,23 @@ async function getRawBody(req) {
       reject(err);
     });
   });
+}
+
+// ✅ helper ส่งเมล
+async function sendUserTokenEmail(email, userId, token, pkg, quota, expiry) {
+  const message = {
+    to: email,
+    from: process.env.SENDER_EMAIL, // ตั้งค่าที่ SendGrid verified ไว้
+    subject: "✅ การชำระเงินสำเร็จแล้วค่ะ",
+    text: `✅ การชำระเงินสำเร็จแล้วค่ะ
+user_id=${userId}
+token=${token}
+แพ็กเกจ: ${pkg} (quota ${quota} ครั้ง)
+วันหมดอายุ: ${expiry}`,
+  };
+
+  await sendgrid.send(message);
+  console.log("📧 Sent email to:", email);
 }
 
 export default async function handler(req, res) {
@@ -94,21 +113,22 @@ export default async function handler(req, res) {
 
       console.log(`✅ User created: ${newId}, token=${newToken}, pkg=${pkg}`);
 
-      // ✅ Push message ไปยัง GPT Connector
-      const pushMessage = `✅ การชำระเงินสำเร็จแล้วค่ะ
-user_id=${newId}, token=${newToken} (แพ็กเกจ ${pkg}, quota ${quota} ครั้ง)`;
+      // ✅ ส่งอีเมลให้ลูกค้า
+      const customerEmail =
+        intent.receipt_email || intent.charges.data[0]?.billing_details?.email;
 
-      await fetch(`${process.env.BASE_URL}/api/pushMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: newId,
-          message: pushMessage,
-        }),
-      });
-
-      console.log("📡 Sent push message to GPT Connector");
-
+      if (customerEmail) {
+        await sendUserTokenEmail(
+          customerEmail,
+          newId,
+          newToken,
+          pkg,
+          quota,
+          expiry.toISOString().split("T")[0]
+        );
+      } else {
+        console.warn("⚠️ No customer email found in payment intent");
+      }
     } catch (err) {
       console.error("❌ Error processing payment:", err);
       return res.status(500).send("Server error");

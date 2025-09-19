@@ -12,16 +12,10 @@ export default async function handler(req, res) {
       });
     }
 
-    const sheets = await getSheet();
-    const spreadsheetId = process.env.SHEET_ID;
-
-    const result = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: "Members!A1:F",
-    });
-
-    const rows = result.data.values || [];
-    const user = rows.find(r => r[0] === user_id && r[1] === token);
+    // ✅ โหลดข้อมูลจาก Google Sheet
+    const sheet = await getSheet("Members");
+    const rows = await sheet.getRows();
+    const user = rows.find(r => r.user_id === user_id && r.token === token);
 
     if (!user) {
       return res.status(200).json({
@@ -30,22 +24,26 @@ export default async function handler(req, res) {
       });
     }
 
-    const [uid, tok, expiry, quota, used, pkg] = user;
-    const today = new Date().toISOString().split("T")[0];
+    // ✅ ตรวจสอบ expiry & quota
+    const expiry = new Date(user.expiry);
+    const today = new Date();
+    const quota = parseInt(user.quota);
+    const used = parseInt(user.used_count);
 
-    if (expiry < today || parseInt(used) >= parseInt(quota)) {
+    if (expiry < today || used >= quota) {
       return res.status(200).json({
         status: "expired",
         message: "❌ token หมดอายุหรือ quota หมด กรุณาซื้อแพ็กเกจใหม่",
       });
     }
 
+    // ✅ ตรวจสอบ mode
     if (mode === "check") {
       return res.status(200).json({
         status: "valid",
         message: "✅ token ถูกต้อง",
-        remaining: parseInt(quota) - parseInt(used),
-        package: pkg,
+        remaining: quota - used,
+        package: user.package,
       });
     }
 

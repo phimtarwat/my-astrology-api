@@ -8,7 +8,7 @@ export const config = {
   api: { bodyParser: false },
 };
 
-// ✅ อ่าน raw body (แทน micro)
+// ✅ อ่าน raw body
 async function getRawBody(req) {
   return new Promise((resolve, reject) => {
     let data = "";
@@ -101,7 +101,10 @@ user_id=${newId}, token=${newToken} (แพ็กเกจ ${pkg}, quota ${quota
       await fetch(`${process.env.BASE_URL}/api/pushMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: pushMessage }),
+        body: JSON.stringify({
+          user_id: newId,
+          message: pushMessage,
+        }),
       });
 
       console.log("📡 Sent push message to GPT Connector");

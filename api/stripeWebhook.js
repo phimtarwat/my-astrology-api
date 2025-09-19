@@ -28,9 +28,9 @@ export default async function handler(req, res) {
       const pi = event.data.object;
 
       const packageId = pi.metadata.packageId;
-      const userId = generateUserId();   // 🔢 user_id = ตัวเลขสุ่ม 5 หลัก
-      const token = generateToken();     // 🔢 token = ตัวเลขสุ่ม 5 หลัก
-      const expiry = getExpiry();        // ⏳ หมดอายุ +30 วัน
+      const userId = generateUserId();   // 🔢 เลขสุ่ม 5 หลัก
+      const token = generateToken();     // 🔢 เลขสุ่ม 5 หลัก
+      const expiry = getExpiry();        // ⏳ 30 วัน
       const quota = getQuota(packageId);
 
       const sheet = await getSheet("Members");

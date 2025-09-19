@@ -4,20 +4,44 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { message } = req.body;
+    const { user_id, message } = req.body;
 
-    if (!message) {
-      return res.status(400).json({ error: "Missing message" });
+    if (!user_id || !message) {
+      return res.status(400).json({ error: "Missing user_id or message" });
     }
 
-    // 📩 log ไว้ให้ debug
-    console.log("📩 PushMessage received:", message);
+    console.log("📩 PushMessage received:", { user_id, message });
 
-    // ✅ ส่งข้อความกลับ GPT Chat (Custom GPT connector จะ handle ตรงนี้ให้ user เห็นทันที)
+    // 🔗 Forward ไปยัง GPT Connector
+    const connectorRes = await fetch(process.env.GPT_CONNECTOR_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id,
+        messages: [
+          {
+            role: "assistant",
+            content: message,
+          },
+        ],
+      }),
+    });
+
+    if (!connectorRes.ok) {
+      const errText = await connectorRes.text();
+      console.error("❌ Failed to deliver to GPT:", errText);
+      return res.status(502).json({
+        error: "Failed to deliver message to GPT",
+        detail: errText,
+      });
+    }
+
+    const data = await connectorRes.json();
+
     return res.status(200).json({
       status: "ok",
       delivered: true,
-      message: message,
+      gpt_response: data,
     });
   } catch (err) {
     console.error("❌ PushMessage error:", err);

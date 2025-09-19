@@ -28,9 +28,9 @@ export default async function handler(req, res) {
       const pi = event.data.object;
 
       const packageId = pi.metadata.packageId;
-      const userId = generateUserId();
-      const token = generateToken();
-      const expiry = getExpiry(packageId);
+      const userId = generateUserId();   // 🔢 user_id = ตัวเลขสุ่ม 5 หลัก
+      const token = generateToken();     // 🔢 token = ตัวเลขสุ่ม 5 หลัก
+      const expiry = getExpiry();        // ⏳ หมดอายุ +30 วัน
       const quota = getQuota(packageId);
 
       const sheet = await getSheet("Members");
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
         paid_at: new Date(pi.created * 1000).toISOString(),
       });
 
-      console.log(`✅ Saved new member: ${userId}`);
+      console.log(`✅ Saved new member: ${userId} / ${token} (package: ${packageId})`);
     } catch (err) {
       console.error("stripeWebhook save error:", err);
     }

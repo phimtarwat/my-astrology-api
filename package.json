@@ -6,10 +6,12 @@
   "type": "module",
   "scripts": {
     "dev": "vercel dev",
-    "start": "node api/checkToken.js"
+    "build": "echo 'Vercel will handle build'",
+    "start": "vercel dev"
   },
   "dependencies": {
-    "googleapis": "^126.0.1",
+    "google-spreadsheet": "^4.0.2",
+    "micro": "^9.3.4",
     "stripe": "^15.0.0"
   }
 }

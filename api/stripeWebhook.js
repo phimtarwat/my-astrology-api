@@ -8,7 +8,7 @@ export const config = {
   api: { bodyParser: false },
 };
 
-// อ่าน raw body เอง (แทน micro)
+// ✅ อ่าน raw body (แทน micro)
 async function getRawBody(req) {
   return new Promise((resolve, reject) => {
     let data = "";
@@ -94,14 +94,14 @@ export default async function handler(req, res) {
 
       console.log(`✅ User created: ${newId}, token=${newToken}, pkg=${pkg}`);
 
-      // ✅ Push ไปยัง GPT Connector
-      await fetch(process.env.GPT_PUSH_ENDPOINT, {
+      // ✅ Push message ไปยัง GPT Connector
+      const pushMessage = `✅ การชำระเงินสำเร็จแล้วค่ะ
+user_id=${newId}, token=${newToken} (แพ็กเกจ ${pkg}, quota ${quota} ครั้ง)`;
+
+      await fetch(`${process.env.BASE_URL}/api/pushMessage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_ref: intent.id, // ref ไว้ใช้ debug
-          message: `✅ การชำระเงินสำเร็จแล้วค่ะ\nuser_id=${newId}, token=${newToken} (แพ็กเกจ ${pkg}, quota ${quota} ครั้ง)`
-        }),
+        body: JSON.stringify({ message: pushMessage }),
       });
 
       console.log("📡 Sent push message to GPT Connector");

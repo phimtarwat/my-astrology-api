@@ -10,10 +10,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing message" });
     }
 
-    // 📡 log ไว้ก่อน
-    console.log("📩 Push message received:", message);
+    // 📩 log ไว้ให้ debug
+    console.log("📩 PushMessage received:", message);
 
-    // ✅ ตอบกลับ GPT (Custom GPT Connector จะส่งข้อความนี้เข้าห้องแชท user โดยอัตโนมัติ)
+    // ✅ ส่งข้อความกลับ GPT Chat (Custom GPT connector จะ handle ตรงนี้ให้ user เห็นทันที)
     return res.status(200).json({
       status: "ok",
       delivered: true,
@@ -24,4 +24,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Internal server error" });
   }
 }
-

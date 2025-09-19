@@ -16,12 +16,18 @@ export default async function handler(req, res) {
       return res.json({ status: "pending" });
     }
 
+    const quota = parseInt(row.quota);
+    const used = parseInt(row.used_count);
+
     return res.json({
       status: "paid",
       userId: row.user_id,
       token: row.token,
       package: row.package,
       receipt_url: row.receipt_url,
+      expiry: row.expiry,
+      quota,
+      remaining: quota - used,
     });
   } catch (err) {
     console.error("getLatestUser error:", err);

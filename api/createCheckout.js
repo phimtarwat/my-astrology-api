@@ -1,37 +1,38 @@
 import Stripe from "stripe";
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-const packageMap = {
-  lite: process.env.STRIPE_PRICE_LITE,
-  standard: process.env.STRIPE_PRICE_STANDARD,
-  premium: process.env.STRIPE_PRICE_PREMIUM,
-};
-
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+  if (req.method !== "POST") return res.status(405).end();
 
   try {
-    const { packageId } = req.body;
-    const priceId = packageMap[packageId?.toLowerCase()];
+    const { packageId, email } = req.body;
 
-    if (!priceId) {
-      return res.status(400).json({ error: "Invalid packageId" });
+    const priceMap = {
+      premium: 19900,   // 199.00 THB
+      standard: 9900,   // 99.00 THB
+      lite: 5900,       // 59.00 THB
+    };
+
+    const amount = priceMap[packageId];
+    if (!amount) {
+      return res.status(400).json({ error: "invalid_package" });
     }
 
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card", "promptpay"], // ✅ รองรับบัตร + QR Code
-      line_items: [{ price: priceId, quantity: 1 }],
-      mode: "payment",
-      success_url: `${process.env.BASE_URL}/success`,
-      cancel_url: `${process.env.BASE_URL}/cancel`,
-      metadata: { packageId }, // ✅ ส่งข้อมูล package ไปที่ webhook
+    const pi = await stripe.paymentIntents.create({
+      amount,
+      currency: "thb",
+      payment_method_types: ["promptpay"],
+      receipt_email: email || undefined,
+      metadata: { packageId },
     });
 
-    return res.json({ url: session.url });
+    return res.json({
+      paymentIntentId: pi.id,
+      clientSecret: pi.client_secret,
+      qr: pi.next_action?.promptpay_display_qr_code?.image?.png,
+    });
   } catch (err) {
     console.error("createCheckout error:", err);
-    return res.status(500).json({ error: "Stripe error" });
+    return res.status(500).json({ error: "Server error" });
   }
 }
